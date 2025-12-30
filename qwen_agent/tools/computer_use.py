@@ -1,4 +1,11 @@
+import os
+import time
+import uuid
 from typing import Union, Tuple, List
+
+import pyautogui
+
+from qwen_agent.settings import DEFAULT_WORKSPACE
 
 from qwen_agent.tools.base import BaseTool, register_tool
 
@@ -36,6 +43,7 @@ The action to perform. The available actions are:
 * `wait`: Wait specified seconds for the change to happen.
 * `terminate`: Terminate the current task and report its completion status.
 * `answer`: Answer a question.
+* `screenshot`: Capture a screenshot without performing any other action.
 """.strip(),
                 "enum": [
                     "key",
@@ -52,6 +60,7 @@ The action to perform. The available actions are:
                     "wait",
                     "terminate",
                     "answer",
+                    "screenshot",
                 ],
                 "type": "string",
             },
@@ -86,15 +95,22 @@ The action to perform. The available actions are:
     }
 
     def __init__(self, cfg=None):
-        self.display_width_px = cfg["display_width_px"]
-        self.display_height_px = cfg["display_height_px"]
+        cfg = cfg or {}
+        if "display_width_px" in cfg and "display_height_px" in cfg:
+            self.display_width_px = cfg["display_width_px"]
+            self.display_height_px = cfg["display_height_px"]
+        else:
+            size = pyautogui.size()
+            self.display_width_px = size.width
+            self.display_height_px = size.height
+        self.work_dir = cfg.get("work_dir", os.path.join(DEFAULT_WORKSPACE, "tools", "computer_use"))
         super().__init__(cfg)
 
     def call(self, params: Union[str, dict], **kwargs):
         params = self._verify_json_format_args(params)
         action = params["action"]
-        if action in ["left_click", "right_click", "middle_click", "double_click","triple_click"]:
-            return self._mouse_click(action)
+        if action in ["left_click", "right_click", "middle_click", "double_click", "triple_click"]:
+            return self._mouse_click(action, params["coordinate"])
         elif action == "key":
             return self._key(params["keys"])
         elif action == "type":
@@ -109,6 +125,8 @@ The action to perform. The available actions are:
             return self._hscroll(params["pixels"])
         elif action == "answer":
             return self._answer(params["text"])
+        elif action == "screenshot":
+            return self._screenshot_result(action="screenshot")
         elif action == "wait":
             return self._wait(params["time"])
         elif action == "terminate":
@@ -116,32 +134,85 @@ The action to perform. The available actions are:
         else:
             raise ValueError(f"Invalid action: {action}")
 
-    def _mouse_click(self, button: str):
-        raise NotImplementedError()
+    def _mouse_click(self, button: str, coordinate: Tuple[int, int]):
+        x, y = self._coerce_coord(coordinate)
+        clicks = 1
+        if button == "double_click":
+            clicks = 2
+            button = "left"
+        elif button == "triple_click":
+            clicks = 3
+            button = "left"
+        elif button == "left_click":
+            button = "left"
+        elif button == "right_click":
+            button = "right"
+        elif button == "middle_click":
+            button = "middle"
+        pyautogui.click(x=x, y=y, button=button, clicks=clicks, interval=0.1)
+        return self._screenshot_result(action="click")
 
     def _key(self, keys: List[str]):
-        raise NotImplementedError()
+        if not keys:
+            raise ValueError("keys cannot be empty for action=key")
+        for key in keys:
+            pyautogui.keyDown(key)
+        for key in reversed(keys):
+            pyautogui.keyUp(key)
+        return self._screenshot_result(action="key")
 
     def _type(self, text: str):
-        raise NotImplementedError()
+        pyautogui.typewrite(text)
+        return self._screenshot_result(action="type")
 
     def _mouse_move(self, coordinate: Tuple[int, int]):
-        raise NotImplementedError()
+        x, y = self._coerce_coord(coordinate)
+        pyautogui.moveTo(x, y)
+        return self._screenshot_result(action="mouse_move")
 
     def _left_click_drag(self, coordinate: Tuple[int, int]):
-        raise NotImplementedError()
+        x, y = self._coerce_coord(coordinate)
+        pyautogui.dragTo(x, y, button="left")
+        return self._screenshot_result(action="left_click_drag")
 
     def _scroll(self, pixels: int):
-        raise NotImplementedError()
+        pyautogui.scroll(int(pixels))
+        return self._screenshot_result(action="scroll")
 
     def _hscroll(self, pixels: int):
-        raise NotImplementedError()
+        if hasattr(pyautogui, "hscroll"):
+            pyautogui.hscroll(int(pixels))
+        else:
+            pyautogui.scroll(int(pixels))
+        return self._screenshot_result(action="hscroll")
 
     def _answer(self, text: str):
-        raise NotImplementedError()
+        return {"answer": text}
+
+    def _screenshot(self):
+        return self._screenshot_result(action="screenshot")
 
     def _wait(self, time: int):
-        raise NotImplementedError()
+        time = float(time)
+        time = max(0.0, time)
+        time.sleep(time)
+        return self._screenshot_result(action="wait")
 
     def _terminate(self, status: str):
-        raise NotImplementedError()
+        if status not in ("success", "failure"):
+            raise ValueError("status must be 'success' or 'failure'")
+        return {"status": status}
+
+    @staticmethod
+    def _coerce_coord(coord: Tuple[int, int]) -> Tuple[int, int]:
+        if not isinstance(coord, (list, tuple)) or len(coord) != 2:
+            raise ValueError("coordinate must be [x, y]")
+        return int(coord[0]), int(coord[1])
+
+    def _screenshot_result(self, action: str) -> dict:
+        os.makedirs(self.work_dir, exist_ok=True)
+        filename = f"{uuid.uuid4().hex}.png"
+        path = os.path.join(self.work_dir, filename)
+        image = pyautogui.screenshot()
+        image.save(path)
+        return {"action": action, "screenshot": path}

@@ -1,9 +1,10 @@
 import copy
+import json
 from typing import Dict, Iterator, List, Literal, Optional, Union
 
 from qwen_agent.agents.assistant import Assistant
 from qwen_agent.llm import BaseChatModel
-from qwen_agent.llm.schema import FUNCTION, Message
+from qwen_agent.llm.schema import FUNCTION, ContentItem, Message
 from qwen_agent.settings import MAX_LLM_CALL_PER_RUN
 from qwen_agent.tools import BaseTool
 
@@ -119,9 +120,17 @@ class MetaboliqAgent(Assistant):
                     use_tool, tool_name, tool_args, _ = self._detect_tool(out)
                     if use_tool:
                         tool_result = self._call_tool(tool_name, tool_args, messages=messages, **kwargs)
+                        fn_content = tool_result
+                        if tool_name == 'computer_use' and isinstance(tool_result, dict):
+                            screenshot = tool_result.get('screenshot')
+                            if screenshot:
+                                fn_content = [
+                                    ContentItem(image=screenshot),
+                                    ContentItem(text=json.dumps(tool_result, ensure_ascii=True)),
+                                ]
                         fn_msg = Message(role=FUNCTION,
                                          name=tool_name,
-                                         content=tool_result,
+                                         content=fn_content,
                                          extra={'function_id': out.extra.get('function_id', '1')})
                         messages.append(fn_msg)
                         response.append(fn_msg)

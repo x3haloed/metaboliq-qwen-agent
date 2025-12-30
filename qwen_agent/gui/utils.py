@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
 from typing import Dict, List
 
+from qwen_agent.gui.gradio_utils import covert_image_to_base64
 from qwen_agent.llm.schema import ASSISTANT, CONTENT, FUNCTION, NAME, REASONING_CONTENT, ROLE, SYSTEM, USER
 
 THINK = '''
@@ -66,34 +68,44 @@ def convert_history_to_chatbot(messages):
 def convert_fncall_to_text(messages: List[Dict]) -> List[Dict]:
     new_messages = []
 
-    for msg in messages:
-        role, content, reasoning_content, name = msg[ROLE], msg[CONTENT], msg.get(REASONING_CONTENT,
-                                                                                  ''), msg.get(NAME, None)
+    def _image_to_src(value: str) -> str:
+        if value.startswith(('http://', 'https://', 'data:')):
+            return value
+        if os.path.exists(value):
+            return covert_image_to_base64(value)
+        return value
 
-        # Handle content as list or string
+    def _content_to_html(content):
         if isinstance(content, list):
-            # Extract text content from list of content items
             text_parts = []
             for item in content:
                 if isinstance(item, dict):
                     if 'text' in item:
                         text_parts.append(item['text'])
                     elif 'image' in item:
-                        b64 = item.get('image', '')
-                        # if b64 and not b64.startswith('data:image/'):
-                        #     # 默认按png处理
-                        #     data_url = f'data:image/png;base64,{b64}'
-                        # else:
-                        data_url = b64
+                        data_url = _image_to_src(item.get('image', ''))
                         text_parts.append(f'<img src="{data_url}" style="max-width:100%;height:auto;" />')
                     elif 'audio' in item:
                         text_parts.append(f"[Audio: {item.get('audio', '')}]")
                 elif isinstance(item, str):
                     text_parts.append(item)
-            # print(len(text_parts))
-            content = ' '.join(text_parts)
-        else:
-            content = content or ''
+            return ' '.join(text_parts)
+        if isinstance(content, dict):
+            if 'screenshot' in content:
+                data_url = _image_to_src(str(content.get('screenshot', '')))
+                action = content.get('action', 'screenshot')
+                return (
+                    f'<div><b>{action}</b></div>'
+                    f'<img src="{data_url}" style="max-width:100%;height:auto;" />'
+                )
+            return json.dumps(content, ensure_ascii=True)
+        return content or ''
+
+    for msg in messages:
+        role, content, reasoning_content, name = msg[ROLE], msg[CONTENT], msg.get(REASONING_CONTENT,
+                                                                                  ''), msg.get(NAME, None)
+
+        content = _content_to_html(content)
 
         content = content.lstrip('\n').rstrip().replace('```', '')
 

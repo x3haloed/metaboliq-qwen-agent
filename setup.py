@@ -68,6 +68,9 @@ setup(
         'tiktoken',
         'pillow',
         'dotenv',
+        'pyyaml',
+        'tomli; python_version < "3.11"',
+        'tomli-w',
     ],
     extras_require={
         # Extra dependencies for RAG:
@@ -121,6 +124,10 @@ setup(
             'gradio==5.23.1',
             'gradio-client==1.8.0',
             'modelscope_studio==1.1.7',
+        ],
+        # Extra dependencies for Computer Use:
+        'computer_use': [
+            'pyautogui',
         ],
     },
     url='https://github.com/QwenLM/Qwen-Agent',
