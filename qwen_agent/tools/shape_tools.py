@@ -32,6 +32,8 @@ except ImportError:
     pd = None
 
 Selector = Union[str, List[Union[str, int]], Tuple[int, Union[int, str]]]
+DEFAULT_PAGE_SIZE = 50
+DEFAULT_MAX_CHARS = 4000
 
 
 def _detect_kind(path: str) -> str:
@@ -153,6 +155,47 @@ def _replace_tree(path: str, selector: str, value: str) -> None:
     raise KeyError(f'{selector} not found')
 
 
+def _safe_json_size(value: Any) -> int:
+    try:
+        return len(json.dumps(value, ensure_ascii=True))
+    except Exception:
+        return len(str(value))
+
+
+def _paginate_list(items: List[Any], page: int, page_size: int) -> Dict[str, Any]:
+    if page < 1:
+        page = 1
+    if page_size < 1:
+        page_size = DEFAULT_PAGE_SIZE
+    total = len(items)
+    start = (page - 1) * page_size
+    end = start + page_size
+    sliced = items[start:end]
+    next_page = page + 1 if end < total else None
+    return {
+        'items': sliced,
+        'page': page,
+        'page_size': page_size,
+        'total': total,
+        'truncated': end < total,
+        'next_page': next_page,
+    }
+
+
+def _paginate_text(text: str, page: int, page_size: int) -> Dict[str, Any]:
+    lines = text.splitlines()
+    page_info = _paginate_list(lines, page, page_size)
+    page_text = '\n'.join(page_info['items'])
+    return {
+        'text': page_text,
+        'page': page_info['page'],
+        'page_size': page_info['page_size'],
+        'total': page_info['total'],
+        'truncated': page_info['truncated'],
+        'next_page': page_info['next_page'],
+    }
+
+
 @register_tool('describe_file')
 class DescribeFile(BaseTool):
     description = 'Describe a file structure (like a lightweight, shape-aware cat). Accepts absolute local paths.'
@@ -163,6 +206,14 @@ class DescribeFile(BaseTool):
                 'type': 'string',
                 'description': 'Path to the file.'
             },
+            'page': {
+                'type': 'integer',
+                'description': 'Optional page number (1-based) for long outlines.'
+            },
+            'page_size': {
+                'type': 'integer',
+                'description': 'Optional page size for long outlines.'
+            },
         },
         'required': ['path'],
     }
@@ -170,36 +221,72 @@ class DescribeFile(BaseTool):
     def call(self, params: Union[str, dict], **kwargs) -> Dict[str, Any]:
         params = self._verify_json_format_args(params)
         path = params['path']
+        page = params.get('page', 1)
+        page_size = params.get('page_size', DEFAULT_PAGE_SIZE)
         kind = _detect_kind(path)
         if kind == 'tree':
             return {'kind': kind, 'outline': _outline_tree(path)}
         if kind == 'map':
             data = _load_map(path)
             if isinstance(data, dict):
-                return {'kind': kind, 'outline': {'summary': 'map', 'keys': list(data.keys())}}
+                keys = list(data.keys())
+                page_info = _paginate_list(keys, page, page_size)
+                outline = {
+                    'summary': 'map',
+                    'keys': page_info['items'],
+                }
+                if page_info['truncated']:
+                    outline['note'] = (
+                        f'Keys truncated. Call describe_file with page={page_info["next_page"]} '
+                        f'to continue.'
+                    )
+                outline.update({k: page_info[k] for k in ('page', 'page_size', 'total', 'truncated', 'next_page')})
+                return {'kind': kind, 'outline': outline}
             if isinstance(data, list):
                 return {'kind': kind, 'outline': {'summary': 'map-list', 'length': len(data)}}
             return {'kind': kind, 'outline': {'summary': 'map-scalar', 'type': type(data).__name__}}
         if kind == 'table':
             if pd is not None:
                 df = pd.read_csv(path)
+                page_info = _paginate_list(list(range(len(df))), page, page_size)
+                start = (page_info['page'] - 1) * page_info['page_size']
+                end = start + page_info['page_size']
                 return {
                     'kind': kind,
                     'outline': {
                         'summary': 'table',
                         'row_count': len(df),
                         'columns': list(df.columns),
-                        'head': df.head(5).to_dict(orient='records'),
+                        'head': df.iloc[start:end].to_dict(orient='records'),
+                        'page': page_info['page'],
+                        'page_size': page_info['page_size'],
+                        'total': page_info['total'],
+                        'truncated': page_info['truncated'],
+                        'next_page': page_info['next_page'],
+                        'note': (
+                            f'Rows truncated. Call describe_file with page={page_info["next_page"]} '
+                            f'to continue.' if page_info['truncated'] else ''
+                        ),
                     },
                 }
             header, rows = _read_table(path)
+            page_info = _paginate_list(rows, page, page_size)
             return {
                 'kind': kind,
                 'outline': {
                     'summary': 'table',
                     'row_count': len(rows),
                     'columns': header,
-                    'head': rows[:5],
+                    'head': page_info['items'],
+                    'page': page_info['page'],
+                    'page_size': page_info['page_size'],
+                    'total': page_info['total'],
+                    'truncated': page_info['truncated'],
+                    'next_page': page_info['next_page'],
+                    'note': (
+                        f'Rows truncated. Call describe_file with page={page_info["next_page"]} '
+                        f'to continue.' if page_info['truncated'] else ''
+                    ),
                 },
             }
         with open(path, 'rb') as f:
@@ -227,6 +314,14 @@ class ExtractSection(BaseTool):
             'selector': {
                 'description': 'Tree: "function:<name>" or "class:<name>". Map: ["a", 0, "b"]. Table: [row, col].'
             },
+            'page': {
+                'type': 'integer',
+                'description': 'Optional page number (1-based) for large values.'
+            },
+            'page_size': {
+                'type': 'integer',
+                'description': 'Optional page size for large values.'
+            },
         },
         'required': ['path', 'selector'],
     }
@@ -235,11 +330,23 @@ class ExtractSection(BaseTool):
         params = self._verify_json_format_args(params)
         path = params['path']
         selector = params['selector']
+        page = params.get('page', 1)
+        page_size = params.get('page_size', DEFAULT_PAGE_SIZE)
         kind = _detect_kind(path)
         if kind == 'tree':
             if not isinstance(selector, str):
                 raise ValueError('Tree selector must be "function:<name>" or "class:<name>"')
-            return {'kind': kind, 'value': _select_tree(path, selector)}
+            text = _select_tree(path, selector)
+            page_info = _paginate_text(text, page, page_size)
+            value = page_info['text']
+            resp = {'kind': kind, 'value': value}
+            resp.update({k: page_info[k] for k in ('page', 'page_size', 'total', 'truncated', 'next_page')})
+            if page_info['truncated']:
+                resp['note'] = (
+                    f'Text truncated. Call extract_section with page={page_info["next_page"]} '
+                    f'to continue.'
+                )
+            return resp
         if kind == 'map':
             if not isinstance(selector, list):
                 raise ValueError('Map selector must be a list path')
@@ -247,6 +354,41 @@ class ExtractSection(BaseTool):
             obj = data
             for key in selector:
                 obj = obj[key]
+            if isinstance(obj, dict):
+                keys = list(obj.keys())
+                if len(keys) <= page_size and _safe_json_size(obj) <= DEFAULT_MAX_CHARS:
+                    return {'kind': kind, 'value': obj}
+                page_info = _paginate_list(keys, page, page_size)
+                resp = {'kind': kind, 'value': page_info['items']}
+                resp.update({k: page_info[k] for k in ('page', 'page_size', 'total', 'truncated', 'next_page')})
+                if page_info['truncated']:
+                    resp['note'] = (
+                        f'Keys truncated. Call extract_section with page={page_info["next_page"]} '
+                        f'to continue, or select a deeper path.'
+                    )
+                return resp
+            if isinstance(obj, list):
+                if len(obj) <= page_size and _safe_json_size(obj) <= DEFAULT_MAX_CHARS:
+                    return {'kind': kind, 'value': obj}
+                page_info = _paginate_list(obj, page, page_size)
+                resp = {'kind': kind, 'value': page_info['items']}
+                resp.update({k: page_info[k] for k in ('page', 'page_size', 'total', 'truncated', 'next_page')})
+                if page_info['truncated']:
+                    resp['note'] = (
+                        f'List truncated. Call extract_section with page={page_info["next_page"]} '
+                        f'to continue.'
+                    )
+                return resp
+            if isinstance(obj, str):
+                page_info = _paginate_text(obj, page, page_size)
+                resp = {'kind': kind, 'value': page_info['text']}
+                resp.update({k: page_info[k] for k in ('page', 'page_size', 'total', 'truncated', 'next_page')})
+                if page_info['truncated']:
+                    resp['note'] = (
+                        f'Text truncated. Call extract_section with page={page_info["next_page"]} '
+                        f'to continue.'
+                    )
+                return resp
             return {'kind': kind, 'value': obj}
         if kind == 'table':
             if not isinstance(selector, list) or len(selector) != 2:
