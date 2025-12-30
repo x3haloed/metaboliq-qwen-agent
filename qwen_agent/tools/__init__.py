@@ -15,6 +15,7 @@
 from .amap_weather import AmapWeather
 from .base import TOOL_REGISTRY, BaseTool
 from .code_interpreter import CodeInterpreter
+from .computer_use import ComputerUse
 from .doc_parser import DocParser
 from .erase import EraseTool
 from .extract_doc_vocabulary import ExtractDocVocabulary
@@ -34,6 +35,7 @@ from .web_search import WebSearch
 __all__ = [
     'BaseTool',
     'CodeInterpreter',
+    'ComputerUse',
     'ImageGen',
     'AmapWeather',
     'TOOL_REGISTRY',
