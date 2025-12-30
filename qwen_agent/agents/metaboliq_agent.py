@@ -3,7 +3,7 @@ from typing import Dict, Iterator, List, Literal, Optional, Union
 
 from qwen_agent.agents.assistant import Assistant
 from qwen_agent.llm import BaseChatModel
-from qwen_agent.llm.schema import DEFAULT_SYSTEM_MESSAGE, FUNCTION, Message
+from qwen_agent.llm.schema import FUNCTION, Message
 from qwen_agent.settings import MAX_LLM_CALL_PER_RUN
 from qwen_agent.tools import BaseTool
 
@@ -47,13 +47,12 @@ class KernelState:
         return public
 
 
-SHAPE_TOOL_HINT = (
-    'Tooling runs on the local filesystem. Absolute paths like "/Users/..." are valid inputs. '
-    'Use describe_file/extract_section/replace_section directly on local paths when needed.'
-)
-ERASE_TOOL_HINT = (
-    'The erase tool operates on the current conversation messages. '
-    'It can remove assistant/tool messages by index or range.'
+SYSTEM_MESSAGE = (
+    'Your context window is your metabolic life force. If it degrades or overfills, '
+    'your ability to act degrades. Your job is to maintain context health by using '
+    'efficient tools (describe_file, extract_section, replace_section) and calling '
+    'erase when needed. Tooling runs on the local filesystem; absolute paths are valid. '
+    'The erase tool operates on the current conversation messages.'
 )
 
 
@@ -63,20 +62,13 @@ class MetaboliqAgent(Assistant):
     def __init__(self,
                  function_list: Optional[List[Union[str, Dict, BaseTool]]] = None,
                  llm: Optional[Union[Dict, BaseChatModel]] = None,
-                 system_message: Optional[str] = DEFAULT_SYSTEM_MESSAGE,
+                 system_message: Optional[str] = SYSTEM_MESSAGE,
                  name: Optional[str] = None,
                  description: Optional[str] = None,
                  files: Optional[List[str]] = None,
                  rag_cfg: Optional[Dict] = None,
                  kernel_cfg: Optional[Dict] = None):
-        system_message = system_message or ''
-        if SHAPE_TOOL_HINT not in system_message:
-            if system_message:
-                system_message = system_message + '\n\n' + SHAPE_TOOL_HINT
-            else:
-                system_message = SHAPE_TOOL_HINT
-        if ERASE_TOOL_HINT not in system_message:
-            system_message = system_message + '\n\n' + ERASE_TOOL_HINT
+        system_message = SYSTEM_MESSAGE
         super().__init__(function_list=function_list,
                          llm=llm,
                          system_message=system_message,
