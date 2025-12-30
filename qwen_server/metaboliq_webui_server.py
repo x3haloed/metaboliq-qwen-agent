@@ -41,6 +41,7 @@ agent = MetaboliqAgent(
         'describe_file',
         'extract_section',
         'replace_section',
+        'erase',
     ],
     llm=llm_config,
     name='metaboliq',

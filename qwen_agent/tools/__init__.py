@@ -16,6 +16,7 @@ from .amap_weather import AmapWeather
 from .base import TOOL_REGISTRY, BaseTool
 from .code_interpreter import CodeInterpreter
 from .doc_parser import DocParser
+from .erase import EraseTool
 from .extract_doc_vocabulary import ExtractDocVocabulary
 from .image_gen import ImageGen
 from .python_executor import PythonExecutor
@@ -48,6 +49,7 @@ __all__ = [
     'HybridSearch',
     'FrontPageSearch',
     'ExtractDocVocabulary',
+    'EraseTool',
     'PythonExecutor',
     'MCPManager',
     'WebSearch',

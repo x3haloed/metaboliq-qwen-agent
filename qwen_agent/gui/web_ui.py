@@ -314,6 +314,11 @@ class WebUI:
         if responses:
             _history.extend([res for res in responses if res[CONTENT] != PENDING_USER_INPUT])
 
+        if hasattr(agent_runner, 'kernel') and getattr(agent_runner.kernel, 'erased_last_call', False):
+            _history = agent_runner.kernel.public_history
+            _chatbot = convert_history_to_chatbot(messages=_history)
+            agent_runner.kernel.erased_last_call = False
+
         if _agent_selector is not None:
             yield _chatbot, _history, _agent_selector
         else:
