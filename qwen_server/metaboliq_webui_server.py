@@ -35,6 +35,13 @@ if hasattr(server_config.server, 'llm'):
         llm_config['model_type'] = server_config.server.model_type
 
 agent = MetaboliqAgent(
+    function_list=[
+        'code_interpreter',
+        'web_extractor',
+        'describe_file',
+        'extract_section',
+        'replace_section',
+    ],
     llm=llm_config,
     name='metaboliq',
     description='Token-metabolism agent with multimodal tool use.',

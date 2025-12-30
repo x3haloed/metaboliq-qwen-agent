@@ -27,6 +27,12 @@ class KernelState:
         self.working_context = messages + responses
 
 
+SHAPE_TOOL_HINT = (
+    'Tooling runs on the local filesystem. Absolute paths like "/Users/..." are valid inputs. '
+    'Use describe_file/extract_section/replace_section directly on local paths when needed.'
+)
+
+
 class MetaboliqAgent(Assistant):
     """Assistant with a lightweight kernel loop to manage working context."""
 
@@ -39,6 +45,12 @@ class MetaboliqAgent(Assistant):
                  files: Optional[List[str]] = None,
                  rag_cfg: Optional[Dict] = None,
                  kernel_cfg: Optional[Dict] = None):
+        system_message = system_message or ''
+        if SHAPE_TOOL_HINT not in system_message:
+            if system_message:
+                system_message = system_message + '\n\n' + SHAPE_TOOL_HINT
+            else:
+                system_message = SHAPE_TOOL_HINT
         super().__init__(function_list=function_list,
                          llm=llm,
                          system_message=system_message,

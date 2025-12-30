@@ -24,6 +24,7 @@ from .image_zoom_in_qwen3vl import ImageZoomInToolQwen3VL
 from .image_search import ImageSearch
 from .search_tools import FrontPageSearch, HybridSearch, KeywordSearch, VectorSearch
 from .simple_doc_parser import SimpleDocParser
+from .shape_tools import DescribeFile, ExtractSection, ReplaceSection
 from .storage import Storage
 from .web_extractor import WebExtractor
 from .mcp_manager import MCPManager
@@ -50,4 +51,7 @@ __all__ = [
     'PythonExecutor',
     'MCPManager',
     'WebSearch',
+    'DescribeFile',
+    'ExtractSection',
+    'ReplaceSection',
 ]
