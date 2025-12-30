@@ -18,10 +18,15 @@ import os
 from pathlib import Path
 
 try:
+    from dotenv import load_dotenv
+except ImportError:
+    load_dotenv = None
+
+try:
     import add_qwen_libs  # NOQA
 except ImportError:
     pass
-from qwen_agent.agents import ArticleAgent, Assistant, ReActChat
+from qwen_agent.agents import ArticleAgent, MetaboliqAgent, ReActChat
 from qwen_agent.gui import gr, mgr, ms
 from qwen_agent.gui.utils import get_avatar_image
 from qwen_agent.llm import get_chat_model
@@ -39,12 +44,17 @@ with open(Path(__file__).resolve().parent / 'server_config.json', 'r') as f:
     server_config = GlobalConfig(**server_config)
 llm_config = None
 
+if load_dotenv:
+    load_dotenv()
+
 if hasattr(server_config.server, 'llm'):
     llm_config = {
         'model': server_config.server.llm,
         'api_key': server_config.server.api_key,
         'model_server': server_config.server.model_server
     }
+    if getattr(server_config.server, 'model_type', ''):
+        llm_config['model_type'] = server_config.server.model_type
 
 app_global_para = {
     'time': [str(datetime.date.today()), str(datetime.date.today())],
@@ -286,7 +296,7 @@ def bot(history, chosen_plug):
                 # checked files
                 for record in read_meta_data_by_condition(meta_file, time_limit=app_global_para['time'], checked=True):
                     content.append({'file': record['url']})
-                qa_assistant = Assistant(llm=llm_config)
+                qa_assistant = MetaboliqAgent(llm=llm_config)
                 message = [{'role': 'user', 'content': content}]
                 # rm all files of history
                 messages = keep_only_files_for_name(app_global_para['messages'], 'None') + message

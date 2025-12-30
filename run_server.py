@@ -20,6 +20,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    load_dotenv = None
+
 from qwen_server.schema import GlobalConfig
 
 
@@ -29,7 +34,7 @@ def parse_args():
         '-m',
         '--model_server',
         type=str,
-        default='dashscope',
+        default=None,
         help='Set it to `dashscope` if you are using the model service provided by DashScope.'
         ' Set it to the base_url (aka api_base) if using an OpenAI API-compatible service such as vLLM or Ollama.'
         ' Default: dashscope',
@@ -38,14 +43,14 @@ def parse_args():
         '-k',
         '--api_key',
         type=str,
-        default='',
+        default=None,
         help='You API key to DashScope or the OpenAI API-compatible model service.',
     )
     parser.add_argument(
         '-l',
         '--llm',
         type=str,
-        default='qwen-plus',
+        default=None,
         help='Set it to one of {"qwen-max", "qwen-plus", "qwen-turbo"} if using DashScope.'
         ' Set it to the model name using an OpenAI API-compatible model service.'
         ' Default: qwen-plus',
@@ -54,7 +59,7 @@ def parse_args():
         '-s',
         '--server_host',
         type=str,
-        default='127.0.0.1',
+        default=None,
         choices=['127.0.0.1', '0.0.0.0'],
         help='Set to 0.0.0.0 if you want to allow other machines to access the server. Default: 127.0.0.1',
     )
@@ -62,28 +67,35 @@ def parse_args():
         '-t',
         '--max_ref_token',
         type=int,
-        default=4000,
+        default=None,
         help='Tokens reserved for the reference materials of retrieval-augmanted generation (RAG). Default: 4000',
     )
     parser.add_argument(
         '-w',
         '--workstation_port',
         type=int,
-        default=7864,
+        default=None,
         help='The port of the creative writing workstation. Default: 7864',
     )
     args = parser.parse_args()
-    args.model_server = args.model_server.replace('0.0.0.0', '127.0.0.1')
+    if args.model_server is not None:
+        args.model_server = args.model_server.replace('0.0.0.0', '127.0.0.1')
     return args
 
 
 def update_config(server_config, args, server_config_path):
-    server_config.server.model_server = args.model_server
-    server_config.server.api_key = args.api_key
-    server_config.server.llm = args.llm
-    server_config.server.server_host = args.server_host
-    server_config.server.max_ref_token = args.max_ref_token
-    server_config.server.workstation_port = args.workstation_port
+    if args.model_server is not None:
+        server_config.server.model_server = args.model_server
+    if args.api_key is not None:
+        server_config.server.api_key = args.api_key
+    if args.llm is not None:
+        server_config.server.llm = args.llm
+    if args.server_host is not None:
+        server_config.server.server_host = args.server_host
+    if args.max_ref_token is not None:
+        server_config.server.max_ref_token = args.max_ref_token
+    if args.workstation_port is not None:
+        server_config.server.workstation_port = args.workstation_port
 
     with open(server_config_path, 'w') as f:
         try:
@@ -95,6 +107,8 @@ def update_config(server_config, args, server_config_path):
 
 
 def main():
+    if load_dotenv:
+        load_dotenv()
     args = parse_args()
     server_config_path = Path(__file__).resolve().parent / 'qwen_server/server_config.json'
     with open(server_config_path, 'r') as f:
@@ -127,10 +141,10 @@ def main():
                 sys.executable,
                 os.path.join(os.getcwd(), 'qwen_server/database_server.py'),
             ]),
-        'workstation':
+        'metaboliq_webui':
             subprocess.Popen([
                 sys.executable,
-                os.path.join(os.getcwd(), 'qwen_server/workstation_server.py'),
+                os.path.join(os.getcwd(), 'qwen_server/metaboliq_webui_server.py'),
             ]),
         'assistant':
             subprocess.Popen([

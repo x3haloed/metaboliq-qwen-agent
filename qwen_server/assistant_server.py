@@ -20,11 +20,16 @@ from pathlib import Path
 import jsonlines
 
 try:
+    from dotenv import load_dotenv
+except ImportError:
+    load_dotenv = None
+
+try:
     import add_qwen_libs  # NOQA
 except ImportError:
     pass
 
-from qwen_agent.agents import Assistant
+from qwen_agent.agents import MetaboliqAgent
 from qwen_agent.gui import gr
 from qwen_agent.gui.utils import get_avatar_image
 from qwen_agent.llm.base import ModelServiceError
@@ -39,14 +44,19 @@ with open(server_config_path, 'r') as f:
 
 llm_config = None
 
+if load_dotenv:
+    load_dotenv()
+
 if hasattr(server_config.server, 'llm'):
     llm_config = {
         'model': server_config.server.llm,
         'api_key': server_config.server.api_key,
         'model_server': server_config.server.model_server
     }
+    if getattr(server_config.server, 'model_type', ''):
+        llm_config['model_type'] = server_config.server.model_type
 
-assistant = Assistant(llm=llm_config)
+assistant = MetaboliqAgent(llm=llm_config)
 
 with open(Path(__file__).resolve().parent / 'css/main.css', 'r') as f:
     css = f.read()
@@ -77,15 +87,24 @@ def set_url():
     if not os.path.exists(cache_file_popup_url):
         # Only able to remind the situation of first browsing failure
         gr.Error('Oops, it seems that the page cannot be opened due to network issues.')
+        return ''
 
     for line in jsonlines.open(cache_file_popup_url):
         lines.append(line)
+    if not lines:
+        gr.Info('No browsing page detected yet. Please open a page in the BrowserQwen extension.')
+        return ''
     logger.info('The current access page is: ' + lines[-1]['url'])
     return lines[-1]['url']
 
 
 def bot(history):
     page_url = set_url()
+    if not page_url:
+        if history:
+            history[-1][1] = 'No browsing page detected yet. Please open a page in the BrowserQwen extension.'
+        yield history
+        return
     if not history:
         yield history
     else:
@@ -109,6 +128,8 @@ def bot(history):
 def init_chatbot():
     time.sleep(1)
     page_url = set_url()
+    if not page_url:
+        return None
     response = read_meta_data_by_condition(meta_file, url=page_url)
     if not response:
         gr.Info(

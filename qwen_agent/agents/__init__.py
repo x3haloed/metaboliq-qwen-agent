@@ -28,6 +28,7 @@ from .group_chat import GroupChat
 from .group_chat_auto_router import GroupChatAutoRouter
 from .group_chat_creator import GroupChatCreator
 from .human_simulator import HumanSimulator
+from .metaboliq_agent import MetaboliqAgent
 from .react_chat import ReActChat
 from .router import Router
 from .tir_agent import TIRMathAgent
@@ -42,6 +43,7 @@ __all__ = [
     'DocQAAgent',
     'DialogueSimulator',
     'HumanSimulator',
+    'MetaboliqAgent',
     'ParallelDocQA',
     'Assistant',
     'ArticleAgent',

@@ -9,9 +9,10 @@
         "fast_api_port": 7866,
         "app_in_browser_port": 7863,
         "workstation_port": 7864,
-        "model_server": "dashscope",
+        "model_server": "https://openrouter.ai/api/v1",
         "api_key": "",
-        "llm": "qwen-plus",
+        "llm": "qwen/qwen3-vl-30b-a3b-instruct",
+        "model_type": "qwenvl_oai",
         "max_ref_token": 4000,
         "max_days": 7
     }

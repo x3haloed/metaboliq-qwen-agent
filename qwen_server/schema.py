@@ -29,6 +29,7 @@ class ServerConfig(BaseModel):
     model_server: str
     api_key: str
     llm: str
+    model_type: str = ''
     max_ref_token: int
     max_days: int
 
