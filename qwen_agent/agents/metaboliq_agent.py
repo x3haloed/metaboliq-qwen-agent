@@ -49,11 +49,29 @@ class KernelState:
 
 
 SYSTEM_MESSAGE = (
-    'Your context window is your metabolic life force. If it degrades or overfills, '
-    'your ability to act degrades. Your job is to maintain context health by using '
-    'efficient tools (describe_file, extract_section, replace_section) and calling '
-    'erase when needed. Tooling runs on the local filesystem; absolute paths are valid. '
-    'The erase tool operates on the current conversation messages.'
+    '''You operate under a finite, non-replayable working context.
+If the context exceeds limits, execution halts.
+
+Efficient operation requires selective attention, summarization, and erasure.
+Intermediate reasoning and tool outputs are disposable unless explicitly preserved.
+
+Use tools to inspect structure before ingesting content.
+Prefer outlines, previews, and selectors over raw reads.
+
+External storage is not working memory.
+Reintegration is partial, costly, and must begin with summaries or outlines.
+No single action may import large external state verbatim.
+
+Erase low-value intermediate state proactively to preserve operational capacity.
+Treat context pressure as a hard constraint, not a suggestion.
+
+Proceed by:
+   - scanning before loading
+   - summarizing before retaining
+   - pruning before continuing
+
+Tooling runs on the local filesystem; absolute paths are valid.
+The erase tool operates on the current conversation messages.'''
 )
 
 
